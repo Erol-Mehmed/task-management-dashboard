@@ -9,11 +9,8 @@ defineOptions({ name: 'AppHeader' })
 </template>
 
 <style lang="scss" scoped>
-@use '../assets/variables' as vars;
-
 .header {
-  background-color: vars.$header-bg;
-  color: vars.$header-color;
+  color: var(--color-white);
   padding: 1rem;
   text-align: center;
 }
