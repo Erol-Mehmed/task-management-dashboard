@@ -1,7 +1,9 @@
+<!-- File: src/components/TasksTable.vue -->
 <script setup lang="ts">
 import { ref, computed, onMounted, type Ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTasks } from '../composables/useTasks.ts'
+import DeleteModal from '../components/modals/DeleteModal.vue'
 
 interface Task {
   id: string | number
@@ -53,10 +55,8 @@ function formatDate(value?: string | number | null) {
   let num: number | null = null
   if (typeof value === 'number') num = value
   else {
-    {
-      const parsed = Number(value)
-      if (!Number.isNaN(parsed)) num = parsed
-    }
+    const parsed = Number(value)
+    if (!Number.isNaN(parsed)) num = parsed
   }
 
   if (num !== null) {
@@ -82,14 +82,60 @@ function getErrorMessage(err: unknown) {
   return 'Failed to load'
 }
 
-const res = useTasks() as {
+/* Typed composable to avoid `any` */
+type TasksComposable = {
   tasks: Ref<Task[]>
   loading: Ref<boolean>
   loadTasks?: () => Promise<void>
+  deleteTask?: (id: string | number) => Promise<void>
 }
+
+const res = useTasks() as TasksComposable
 const tasks = res.tasks
 const loading = res.loading
 const loadTasks = res.loadTasks
+
+// Delete modal state and handlers
+const showDeleteModal = ref(false)
+const taskToDelete = ref<Task | null>(null)
+const deleting = ref(false)
+
+function openDeleteModal(task: Task, ev?: Event) {
+  ev?.stopPropagation()
+  taskToDelete.value = task
+  showDeleteModal.value = true
+}
+
+const deleteMessage = computed(() => {
+  return taskToDelete.value ? `Delete \"${taskToDelete.value.title}\"?` : undefined
+})
+
+async function confirmDelete() {
+  if (!taskToDelete.value) return
+  deleting.value = true
+  error.value = null
+  try {
+    if (typeof res.deleteTask === 'function') {
+      await res.deleteTask(taskToDelete.value.id)
+    } else {
+      const idx = (tasks.value || []).findIndex(
+        (t) => String(t.id) === String(taskToDelete.value?.id),
+      )
+      if (idx !== -1) tasks.value.splice(idx, 1)
+    }
+    showDeleteModal.value = false
+    taskToDelete.value = null
+  } catch (err) {
+    error.value = getErrorMessage(err)
+  } finally {
+    deleting.value = false
+  }
+}
+
+function cancelDelete() {
+  showDeleteModal.value = false
+  taskToDelete.value = null
+}
 
 // Filters
 const query = ref('')
@@ -224,10 +270,31 @@ if (typeof loadTasks === 'function') {
           </td>
 
           <td class="col-status">{{ normalizeStatus(task.status) }}</td>
-          <td class="col-due">{{ formatDate(task.due) }}</td>
+
+          <td class="col-due">
+            <div class="due-wrap">
+              <span>{{ formatDate(task.due) }}</span>
+              <button
+                class="link-btn delete"
+                @click.stop="openDeleteModal(task, $event)"
+                aria-label="Delete task"
+              >
+                Delete
+              </button>
+            </div>
+          </td>
         </tr>
       </tbody>
     </table>
+
+    <DeleteModal
+      :visible="showDeleteModal"
+      title="Delete task"
+      :message="deleteMessage"
+      :loading="deleting"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
@@ -367,6 +434,12 @@ if (typeof loadTasks === 'function') {
     .col-due {
       width: 12%;
       color: var(--color-subtle);
+
+      .due-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
     }
 
     .title-wrap {
@@ -422,10 +495,32 @@ if (typeof loadTasks === 'function') {
           td {
             display: block;
             padding: 0.6rem 0.75rem;
+
+            &.col-due {
+              width: 100%;
+
+              .due-wrap {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 2rem;
+
+                .link-btn {
+                  margin-left: 0;
+                }
+              }
+            }
           }
         }
       }
     }
+  }
+
+  /* inline delete link-button style */
+  .link-btn.delete {
+    margin-left: 5rem;
+    color: var(--color-error);
+    font-weight: 600;
   }
 }
 </style>
