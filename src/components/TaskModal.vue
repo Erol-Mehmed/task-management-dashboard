@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { reactive, computed, watch, onMounted, onUnmounted, ref } from 'vue'
 import type { PropType } from 'vue'
 
 interface Task {
@@ -23,6 +23,7 @@ const emits = defineEmits<{
 }>()
 
 const statusOptions = ['To Do', 'In Progress', 'Done'] as const
+type Status = (typeof statusOptions)[number]
 
 function toDateInputValue(value: unknown): string {
   if (value === undefined || value === null || value === '') return ''
@@ -45,17 +46,35 @@ function toDateInputValue(value: unknown): string {
 
 function normalizeDueFromInput(value: string): string | null {
   if (!value) return null
-  // keep ISO date string (YYYY-MM-DD)
   return value
 }
 
 /* local form state */
-const form = reactive({
+const form = reactive<{
+  title: string
+  description: string
+  status: Status
+  dueInput: string
+}>({
   title: '',
   description: '',
-  status: 'To Do' as string,
-  dueInput: '' as string,
+  status: 'To Do',
+  dueInput: '',
 })
+
+const touched = reactive<{
+  title: boolean
+  description: boolean
+  status: boolean
+  due: boolean
+}>({
+  title: false,
+  description: false,
+  status: false,
+  due: false,
+})
+
+const submitted = ref(false)
 
 /* reset form when opened or initial changes */
 watch(
@@ -63,9 +82,16 @@ watch(
   ([visible]) => {
     if (visible) {
       form.title = String(props.initial?.title ?? '')
-      form.description = props.initial?.description ?? ''
-      form.status = (props.initial?.status as string) ?? 'To Do'
+      form.description = String(props.initial?.description ?? '')
+      form.status = ((props.initial?.status as Status) ?? 'To Do') as Status
       form.dueInput = toDateInputValue(props.initial?.due)
+
+      // reset validation state on open
+      touched.title = false
+      touched.description = false
+      touched.status = false
+      touched.due = false
+      submitted.value = false
     }
   },
   { immediate: true },
@@ -73,12 +99,16 @@ watch(
 
 /* validation */
 const titleValid = computed(() => form.title.trim().length > 0)
+const descriptionValid = computed(() => form.description.trim().length > 0)
+const statusValid = computed(() => statusOptions.includes(form.status))
 const dueValid = computed(() => {
-  if (!form.dueInput) return true
+  if (!form.dueInput) return false
   const d = new Date(form.dueInput)
   return !isNaN(d.getTime())
 })
-const formValid = computed(() => titleValid.value && dueValid.value)
+const formValid = computed(
+  () => titleValid.value && descriptionValid.value && statusValid.value && dueValid.value,
+)
 
 /* actions */
 function close() {
@@ -86,7 +116,14 @@ function close() {
 }
 
 function save() {
+  submitted.value = true
+  // mark all fields as touched so errors render
+  ;(Object.keys(touched) as Array<keyof typeof touched>).forEach((k) => {
+    touched[k] = true
+  })
+
   if (!formValid.value) return
+
   const payload: Task = {
     ...(props.initial ?? {}),
     title: form.title.trim(),
@@ -127,26 +164,65 @@ onUnmounted(() => {
       <form class="modal-body" @submit.prevent="save" novalidate>
         <label class="form-row">
           <span>Title *</span>
-          <input v-model="form.title" type="text" required :class="{ invalid: !titleValid }" />
-          <small v-if="!titleValid" class="error">Title is required.</small>
+          <input
+            v-model="form.title"
+            type="text"
+            required
+            :class="{ invalid: (touched.title || submitted) && !titleValid }"
+            @blur="touched.title = true"
+            :aria-invalid="(touched.title || submitted) && !titleValid ? 'true' : 'false'"
+          />
+          <small v-if="(touched.title || submitted) && !titleValid" class="error"
+            >Title is required.</small
+          >
         </label>
 
         <label class="form-row">
-          <span>Description</span>
-          <textarea v-model="form.description" rows="4"></textarea>
+          <span>Description *</span>
+          <textarea
+            v-model="form.description"
+            rows="4"
+            required
+            :class="{ invalid: (touched.description || submitted) && !descriptionValid }"
+            @blur="touched.description = true"
+            :aria-invalid="
+              (touched.description || submitted) && !descriptionValid ? 'true' : 'false'
+            "
+          ></textarea>
+          <small v-if="(touched.description || submitted) && !descriptionValid" class="error"
+            >Description is required.</small
+          >
         </label>
 
         <label class="form-row">
-          <span>Status</span>
-          <select v-model="form.status">
+          <span>Status *</span>
+          <select
+            v-model="form.status"
+            required
+            :class="{ invalid: (touched.status || submitted) && !statusValid }"
+            @blur="touched.status = true"
+            :aria-invalid="(touched.status || submitted) && !statusValid ? 'true' : 'false'"
+          >
             <option v-for="opt in statusOptions" :key="opt" :value="opt">{{ opt }}</option>
           </select>
+          <small v-if="(touched.status || submitted) && !statusValid" class="error"
+            >Select a valid status.</small
+          >
         </label>
 
         <label class="form-row">
-          <span>Due Date</span>
-          <input v-model="form.dueInput" type="date" :class="{ invalid: !dueValid }" />
-          <small v-if="!dueValid" class="error">Enter a valid date.</small>
+          <span>Due Date *</span>
+          <input
+            v-model="form.dueInput"
+            type="date"
+            required
+            :class="{ invalid: (touched.due || submitted) && !dueValid }"
+            @blur="touched.due = true"
+            :aria-invalid="(touched.due || submitted) && !dueValid ? 'true' : 'false'"
+          />
+          <small v-if="(touched.due || submitted) && !dueValid" class="error"
+            >Enter a valid due date.</small
+          >
         </label>
 
         <div class="form-actions">

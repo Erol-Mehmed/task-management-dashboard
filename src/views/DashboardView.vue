@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, toRaw } from 'vue'
 import TasksTable from '../components/TasksTable.vue'
 import TaskModal from '../components/TaskModal.vue'
+import BaseButton from '../components/BaseButton.vue'
 import { useTasks } from '../composables/useTasks'
 
 interface Task {
@@ -35,6 +36,12 @@ function closeCreate() {
   showCreate.value = false
 }
 
+function cloneInitial() {
+  const src = toRaw(initial)
+  if (typeof structuredClone === 'function') return structuredClone(src)
+  return JSON.parse(JSON.stringify(src))
+}
+
 async function handleSave(payload: Partial<Task> | undefined) {
   if (!payload) {
     showCreate.value = false
@@ -42,16 +49,16 @@ async function handleSave(payload: Partial<Task> | undefined) {
   }
 
   saving.value = true
-
   try {
     if (typeof res.createTask === 'function') {
       await res.createTask(payload)
     }
+
     if (typeof res.loadTasks === 'function') {
       await res.loadTasks()
     }
   } catch (err) {
-     console.error(err)
+    console.error(err)
   } finally {
     saving.value = false
     showCreate.value = false
@@ -63,16 +70,17 @@ async function handleSave(payload: Partial<Task> | undefined) {
   <header class="dashboard-header">
     <h1>Dashboard</h1>
     <div class="actions">
-      <button class="btn primary" @click="openCreate">Add Task</button>
+      <BaseButton variant="primary" @click="openCreate">Add Task</BaseButton>
     </div>
   </header>
 
   <TasksTable />
 
   <TaskModal
+    :key="String(showCreate)"
     mode="create"
     :visible="showCreate"
-    :initial="initial"
+    :initial="cloneInitial()"
     @save="handleSave"
     @close="closeCreate"
   />
@@ -84,13 +92,5 @@ async function handleSave(payload: Partial<Task> | undefined) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
-}
-.btn.primary {
-  background: var(--link-color, #2563eb);
-  color: white;
-  border: none;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  cursor: pointer;
 }
 </style>

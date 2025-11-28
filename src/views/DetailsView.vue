@@ -2,6 +2,7 @@
 import { ref, reactive, computed, watch, onMounted, type Ref, isRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TaskModal from '../components/TaskModal.vue'
+import BaseButton from '../components/BaseButton.vue'
 import { useTasks } from '../composables/useTasks'
 
 interface Task {
@@ -17,15 +18,16 @@ interface UseTasksReturn {
   tasks: Ref<Task[]>
   loading?: Ref<boolean> | boolean
   loadTasks?: () => Promise<void>
-  updateTask?: (t: Task) => Promise<void>
+  updateTask?: (id: string | number, payload: Partial<Task>) => Promise<Task | void>
   createTask?: (t: Partial<Task>) => Promise<Task>
 }
 
 const route = useRoute()
 const router = useRouter()
-const idParam = computed(() => String(route.params.id ?? ''))
 
-const res = useTasks() as UseTasksReturn
+const idParam = computed(() => String(route.params.id || ''))
+
+const res = useTasks() as unknown as UseTasksReturn
 const tasks = res.tasks
 const loading = res.loading
 
@@ -39,7 +41,6 @@ const isLoading = computed(() => {
   return Boolean(loading)
 })
 
-/* typed computed task */
 const task = computed<Task | undefined>(() =>
   Array.isArray(tasks?.value) ? tasks.value.find((t) => String(t.id) === idParam.value) : undefined,
 )
@@ -53,7 +54,6 @@ function getErrorMessage(err: unknown): string {
   return 'An unexpected error occurred'
 }
 
-// load tasks if not present
 onMounted(() => {
   if (
     (!tasks || !Array.isArray(tasks.value) || tasks.value.length === 0) &&
@@ -65,7 +65,6 @@ onMounted(() => {
   }
 })
 
-// edited copy for modal
 const edited = reactive<Partial<Task>>({})
 
 watch(
@@ -87,16 +86,16 @@ function cancelEdit() {
   if (task.value) Object.assign(edited, { ...task.value })
 }
 
-/* handle save emitted from TaskModal */
-async function handleSaveFromModal(payload: Task) {
+async function handleSaveFromModal(payload: Partial<Task>) {
+  const payloadTask = payload as Task
   saving.value = true
   try {
     if (typeof res.updateTask === 'function') {
-      await res.updateTask(payload)
+      await res.updateTask(payloadTask.id, payloadTask)
       if (typeof res.loadTasks === 'function') await res.loadTasks()
     } else if (Array.isArray(tasks?.value)) {
-      const idx = tasks.value.findIndex((t) => String(t.id) === String(payload.id))
-      if (idx >= 0) tasks.value.splice(idx, 1, payload)
+      const idx = tasks.value.findIndex((t) => String(t.id) === String(payloadTask.id))
+      if (idx >= 0) tasks.value.splice(idx, 1, payloadTask)
     }
     showEdit.value = false
   } catch (err: unknown) {
@@ -110,7 +109,6 @@ function goBack() {
   router.back()
 }
 
-/* helper kept in setup */
 function formatDue(value: unknown) {
   if (value === undefined || value === null || value === '') return '—'
   const num = typeof value === 'number' ? value : Number(value)
@@ -131,7 +129,7 @@ function formatDue(value: unknown) {
       <button class="back" @click="goBack" aria-label="Back">← Back</button>
       <h1>Task Details</h1>
       <div class="actions">
-        <button v-if="task" class="btn" @click="openEdit">Edit Task</button>
+        <BaseButton v-if="task" variant="primary" @click="openEdit">Edit Task</BaseButton>
       </div>
     </header>
 
@@ -158,10 +156,6 @@ function formatDue(value: unknown) {
           <div class="value">{{ formatDue(task.due) }}</div>
         </div>
       </section>
-
-      <section class="meta">
-        <pre>{{ task }}</pre>
-      </section>
     </main>
 
     <div v-else class="not-found">
@@ -174,14 +168,13 @@ function formatDue(value: unknown) {
       :visible="showEdit"
       :initial="edited"
       mode="edit"
-      @save="(p: any) => handleSaveFromModal(p)"
+      @save="handleSaveFromModal"
       @close="cancelEdit"
     />
   </div>
 </template>
 
 <style scoped lang="scss">
-/* (styles kept same as previous implementation) */
 .details-view {
   padding: 1.25rem;
   font-family:
@@ -201,11 +194,20 @@ function formatDue(value: unknown) {
     margin-bottom: 1rem;
 
     .back {
+      font-size: 1rem;
       background: none;
       border: none;
       padding: 0.25rem 0.5rem;
       cursor: pointer;
       color: var(--link-color);
+
+      &:hover {
+        text-decoration: underline;
+      }
+
+      &:active {
+        opacity: 0.7;
+      }
     }
 
     h1 {
@@ -215,7 +217,7 @@ function formatDue(value: unknown) {
     }
 
     .actions {
-      .btn {
+      ::v-deep(.btn) {
         margin-left: 0.5rem;
       }
     }
@@ -251,19 +253,6 @@ function formatDue(value: unknown) {
       gap: 0.5rem;
       margin-bottom: 0.75rem;
     }
-
-    .meta {
-      margin-top: 1rem;
-      pre {
-        white-space: pre-wrap;
-        margin: 0;
-        padding: 0.5rem;
-        background: var(--color-bg);
-        border-radius: 6px;
-        font-size: 0.85rem;
-        color: var(--color-subtle);
-      }
-    }
   }
 
   .not-found {
@@ -272,7 +261,6 @@ function formatDue(value: unknown) {
   }
 }
 
-/* modal styles are provided by TaskModal component */
 @media (max-width: 720px) {
   .details-view {
     .content {
