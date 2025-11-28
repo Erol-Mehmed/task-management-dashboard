@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, type Ref } from 'vue'
+import { ref, reactive, computed, watch, onMounted, type Ref, isRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TaskModal from '../components/TaskModal.vue'
 import { useTasks } from '../composables/useTasks'
@@ -15,7 +15,7 @@ interface Task {
 
 interface UseTasksReturn {
   tasks: Ref<Task[]>
-  loading?: Ref<boolean>
+  loading?: Ref<boolean> | boolean
   loadTasks?: () => Promise<void>
   updateTask?: (t: Task) => Promise<void>
   createTask?: (t: Partial<Task>) => Promise<Task>
@@ -32,6 +32,12 @@ const loading = res.loading
 const error = ref<string | null>(null)
 const saving = ref(false)
 const showEdit = ref(false)
+
+const isLoading = computed(() => {
+  if (loading === undefined) return false
+  if (isRef(loading)) return Boolean(loading.value)
+  return Boolean(loading)
+})
 
 /* typed computed task */
 const task = computed<Task | undefined>(() =>
@@ -159,17 +165,16 @@ function formatDue(value: unknown) {
     </main>
 
     <div v-else class="not-found">
-      <p v-if="loading?.value">Loading…</p>
+      <p v-if="isLoading">Loading…</p>
       <p v-else-if="error">{{ error }}</p>
       <p v-else>Task not found.</p>
     </div>
 
-    <!-- Reusable modal component -->
     <TaskModal
       :visible="showEdit"
       :initial="edited"
       mode="edit"
-      @save="handleSaveFromModal"
+      @save="(p: any) => handleSaveFromModal(p)"
       @close="cancelEdit"
     />
   </div>
