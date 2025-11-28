@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, toRaw } from 'vue'
 import TasksTable from '../components/TasksTable.vue'
-import TaskModal from '../components/TaskModal.vue'
+import TaskModal from '../components/modals/TaskModal.vue'
 import BaseButton from '../components/BaseButton.vue'
 import { useTasks } from '../composables/useTasks'
 

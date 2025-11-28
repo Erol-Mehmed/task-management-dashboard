@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, type Ref, isRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import TaskModal from '../components/TaskModal.vue'
+import TaskModal from '../components/modals/TaskModal.vue'
 import BaseButton from '../components/BaseButton.vue'
 import { useTasks } from '../composables/useTasks'
 

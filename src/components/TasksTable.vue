@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, type Ref } from 'vue'
+import { ref, computed, onMounted, type Ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTasks } from '../composables/useTasks.ts'
 
@@ -110,6 +110,16 @@ const filteredTasks = computed(() => {
   })
 })
 
+const expanded = reactive<Record<string, boolean>>({})
+
+function isExpanded(id: string | number) {
+  return !!expanded[String(id)]
+}
+function toggleExpanded(id: string | number) {
+  const key = String(id)
+  expanded[key] = !expanded[key]
+}
+
 function onCreate() {
   emits('create')
 }
@@ -186,8 +196,29 @@ if (typeof loadTasks === 'function') {
           </td>
 
           <td class="col-desc">
-            <div v-if="task.description" class="desc-trunc">
-              {{ truncateText(task.description, 120) }}
+            <div v-if="task.description" :class="{ 'desc-trunc': !isExpanded(task.id) }">
+              <template v-if="isExpanded(task.id)">
+                {{ task.description }}
+                <button
+                  class="link-btn"
+                  @click.stop="toggleExpanded(task.id)"
+                  aria-label="Show less"
+                >
+                  Show less
+                </button>
+              </template>
+
+              <template v-else>
+                {{ truncateText(task.description, 50) }}
+                <button
+                  v-if="String(task.description).length > 50"
+                  class="link-btn"
+                  @click.stop="toggleExpanded(task.id)"
+                  aria-label="Read more"
+                >
+                  Read more
+                </button>
+              </template>
             </div>
             <span v-else>-</span>
           </td>
@@ -379,6 +410,10 @@ if (typeof loadTasks === 'function') {
       }
 
       tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+
         tr {
           display: grid;
           grid-template-columns: 1fr;
